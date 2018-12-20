@@ -290,6 +290,13 @@ sub syncdataset {
 		}
 	}
 
+	#TT:Tue 18 Dec 2018 01:35:14 AM EST
+	$receiveextraargs .= " -u";
+	my $fstype = getzfsvalue($sourcehost,$sourcefs,$sourceisroot,'type');
+	if ($fstype ne 'volume') {
+		$receiveextraargs .= " -o canmount=noauto";
+	}
+
 	my $newsyncsnap;
 
 	# skip snapshot checking/creation in case of resumed receive
