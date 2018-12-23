@@ -100,6 +100,9 @@ my %avail = checkcommands();
 my %snaps;
 my $exitcode = 0;
 
+# global that stores the current syncoid run session name for bookmark(ing)
+my $sessionname;
+
 ## break here to call replication individually so that we ##
 ## can loop across children separately, for recursive     ##
 ## replication                                            ##
@@ -654,6 +657,7 @@ sub syncdataset {
 					if ($exitcode < 2) { $exitcode = 2; }
 					return 0;
 				};
+				sessionbookmark($targetfsescaped, $newsyncsnapescaped);
 			}
 
 			# restore original readonly value to target after sync complete
@@ -670,6 +674,19 @@ sub syncdataset {
 	}
 
 } # end syncdataset()
+
+sub sessionbookmark {
+	my ($targetfsescaped, $newsyncsnapescaped) = @_;
+
+	return unless ($sessionname);
+
+	my $bookmarkcmd = "$targetsudocmd $zfscmd bookmark ${targetfsescaped}\@$newsyncsnapescaped ${targetfsescaped}#${sessionname}";
+	system($bookmarkcmd) == 0 or do {
+		warn "CRITICAL ERROR: $bookmarkcmd failed: $?";
+		if ($exitcode < 2) { $exitcode = 2; }
+		return 0;
+	};
+}
 
 sub compressargset {
 	my ($value) = @_;
@@ -1187,6 +1204,17 @@ sub newsyncsnap {
 	my $snapcmd = "$rhost $mysudocmd $zfscmd snapshot $fsescaped\@$snapname\n";
 	system($snapcmd) == 0 or do {
 		warn "CRITICAL ERROR: $snapcmd failed: $?";
+		if ($exitcode < 2) { $exitcode = 2; }
+		return 0;
+	};
+
+	if (! $sessionname) {
+		# global
+		$sessionname = escapeshellparam("syncoid_session_${identifier}${hostid}_$date{'stamp'}");
+	}
+	my $sessionbookmarkcmd = "$rhost $mysudocmd $zfscmd bookmark $fsescaped\@$snapname ${fsescaped}#$sessionname\n";
+	system($sessionbookmarkcmd) == 0 or do {
+		warn "CRITICAL ERROR: $sessionbookmarkcmd failed: $?";
 		if ($exitcode < 2) { $exitcode = 2; }
 		return 0;
 	};
